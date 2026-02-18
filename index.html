@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NP Predictor | UTCS MLB Lab</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="container">
+            <div class="logo">UTCS <span class="highlight">MLB Lab</span></div>
+            <nav>
+                <ul>
+                    <li><a href="#">HOME</a></li>
+                    <li><a href="#" class="active">NP PREDICTOR</a></li>
+                    <li><a href="#">DATASET</a></li>
+                    <li><a href="#">ALGORITHM</a></li>
+                    <li><a href="#">PUBLICATIONS</a></li>
+                    <li><a href="#">CONTACT</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero-banner">
+        <div class="container text-right">
+            <h1>NP Predictor</h1>
+            <p class="breadcrumb">UTCS MLB LAB <span>▶</span> NEUROPEPTIDE PREDICTION SYSTEM</p>
+        </div>
+    </section>
+
+    <main class="container main-content">
+        <div class="section-header">
+            <h2>NP Predictor <small>(Version 2.0)</small></h2>
+            <p>請輸入蛋白質序列進行 Neuropeptide (NP) 活性預測。</p>
+        </div>
+        
+        <form id="predictorForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Upload Sequence File (.fasta/.txt):</label>
+                    <input type="file" id="fileInput">
+                </div>
+                <div class="form-group">
+                    <label>Task Name :</label>
+                    <input type="text" id="jobTitle" placeholder="e.g., NP_Analysis_01">
+                </div>
+                <div class="form-group">
+                    <label>Notification Email:</label>
+                    <input type="email" id="userEmail" placeholder="yourname@utexas.edu">
+                </div>
+            </div>
+
+            <div class="form-group full-width">
+                <label>Input FASTA Sequences:</label>
+                <textarea id="fastaInput" placeholder=">Sample_Sequence&#10;MKVILLFVLAVALVAVPS..."></textarea>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="btn btn-primary">Run Prediction</button>
+                <button type="reset" class="btn btn-secondary">Clear All</button>
+            </div>
+        </form>
+
+        <div id="loadingStatus" class="hidden">
+            <div class="spinner"></div>
+            <p>ML Model is analyzing sequences...</p>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 UTCS Machine Learning and Biology Lab. All rights reserved.</p>
+            <p>Department of Computer Science, The University of Texas at Austin.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
