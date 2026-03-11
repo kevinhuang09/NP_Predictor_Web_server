@@ -1,7 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('predictorForm');
     const loading = document.getElementById('loadingStatus');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultTableBody = document.getElementById('resultTableBody');
     
+    // 如果你有一個 p 標籤用來顯示 loading 文字，就抓它，否則這只是一個備用
+    const loadingText = loading.querySelector('p') || { innerText: '' }; 
+
+    // ngrok 的網址
+    const baseUrl = 'https://gypsiferous-lavern-nonprobably.ngrok-free.dev';
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -10,67 +18,148 @@ document.addEventListener('DOMContentLoaded', () => {
         const taskName = document.getElementById('jobTitle').value || "Untitled_Task";
         const email = document.getElementById('userEmail').value;
 
-        // 1. 基本檢查：是否有輸入
+        // 基本檢查
         if (!fastaInput && !fileInput) {
             alert("Please provide a FASTA sequence or upload a file.");
             return;
         }
 
-        // 2. 檔案大小檢查 (限制 5MB)
         const MAX_FILE_SIZE = 5 * 1024 * 1024; 
         if (fileInput && fileInput.size > MAX_FILE_SIZE) {
             alert("檔案太大了！請限制在 5MB 以內。");
             return;
         }
 
+        // 啟動 Loading 介面
         loading.classList.remove('hidden');
+        loadingText.innerText = "Uploading data to server...";
+        if (resultContainer) resultContainer.classList.add('hidden');
 
         try {
             let finalSequence = fastaInput;
-
-            // 3. 如果有上傳檔案，讀取檔案內容覆蓋 finalSequence
             if (fileInput) {
                 finalSequence = await readFileContent(fileInput);
             }
-            // connect to local
-            // http://127.0.0.1:8000/predict
-            // 4. 發送請求到本地 API
-            const response = await fetch('https://gypsiferous-lavern-nonprobably.ngrok-free.dev/predict', {
+
+            // === 步驟 1：送出檔案並取得 Task ID ===
+            const response = await fetch(`${baseUrl}/predict`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'ngrok-skip-browser-warning': 'true' // 核心：跳過 ngrok 的中間警告頁
+                    'ngrok-skip-browser-warning': 'true' // 避開 ngrok 警告頁
                 },
                 body: JSON.stringify({
                     task_name: taskName,
-                    email: email, // 記得傳送 email
+                    email: email,
                     sequence: finalSequence
                 })
             });
 
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const startResult = await response.json();
+            
+            if (startResult.status !== "started") {
+                alert("Upload failed: " + startResult.message);
+                loading.classList.add('hidden');
+                return;
+            }
 
-            const result = await response.json();
+            // 顯示上傳成功
+            const taskId = startResult.task_id;
+            console.log("Task Started:", taskId);
+            loadingText.innerText = `上傳成功！正在計算中... (Task: ${taskId})`;
 
-            // 5. 成功處理
-            console.log("Prediction Result:", result);
-            alert(`Submission Successful!\nTask: ${result.task}\nResult: ${result.data.label} (Score: ${result.data.score})`);
+            // === 步驟 2：開始輪詢 (每 5 秒問一次) ===
+            const MAX_WAIT_MS = 180 * 1000; // 最大等待時間 3 分鐘
+            const POLL_INTERVAL = 5000;     // 5 秒問一次
+            let elapsedTime = 0;
+
+            const pollTimer = setInterval(async () => {
+                elapsedTime += POLL_INTERVAL;
+                loadingText.innerText = `模型運算中... 耗時: ${elapsedTime/1000} 秒 (上限 180 秒)`;
+
+                try {
+                    // 呼叫 check_status 路由
+                    const statusRes = await fetch(`${baseUrl}/check_status/${taskId}`, {
+                        headers: {
+                            'ngrok-skip-browser-warning': 'true' // 這裡也要加！
+                        }
+                    });
+
+                    const statusData = await statusRes.json();
+
+                    if (statusData.status === "completed") {
+                        // === 步驟 3：算完了，顯示結果 ===
+                        clearInterval(pollTimer);
+                        loading.classList.add('hidden');
+                        
+                        alert("Prediction Completed!");
+                        
+                        // 將結果畫在網頁表格上
+                        renderResultTable(statusData.data);
+                        if(resultContainer) {
+                            resultContainer.classList.remove('hidden');
+                            resultContainer.scrollIntoView({ behavior: 'smooth' });
+                        }
+
+                    } else if (statusData.status === "error") {
+                        clearInterval(pollTimer);
+                        loading.classList.add('hidden');
+                        alert("模型運算發生錯誤: " + statusData.message);
+                    }
+                    // 如果是 "processing"，什麼都不做，等下一個 5 秒
+
+                } catch (pollErr) {
+                    console.error("Polling error, retrying...", pollErr);
+                    // 網路稍微閃斷，不停止計時器，繼續嘗試
+                }
+
+                // 防呆：超過 3 分鐘強制停止
+                if (elapsedTime >= MAX_WAIT_MS) {
+                    clearInterval(pollTimer);
+                    loading.classList.add('hidden');
+                    alert("請求逾時！模型運算超過 3 分鐘，請確認伺服器狀態。");
+                }
+
+            }, POLL_INTERVAL);
 
         } catch (error) {
             console.error("Connection Error:", error);
-            alert("Failed to connect to the Local Prediction Server. Please ensure the Python API is running.");
-        } finally {
+            alert("Failed to connect to the Server. Please ensure Python and ngrok are running.");
             loading.classList.add('hidden');
         }
     });
 
-    // 輔助函式：讀取本地檔案內容
+    // 讀取檔案副程式
     function readFileContent(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
             reader.onerror = (e) => reject(e);
             reader.readAsText(file);
+        });
+    }
+
+    // 畫出表格的副程式
+    function renderResultTable(dataList) {
+        if (!resultTableBody) return;
+        resultTableBody.innerHTML = ''; 
+        
+        dataList.forEach(item => {
+            const row = document.createElement('tr');
+            
+            // 決定 Label 的顏色 (綠色 vs 紅色)
+            const labelStyle = item.label === 'neuropeptide' 
+                ? 'color: #28a745; font-weight: bold;' 
+                : 'color: #dc3545; font-weight: bold;';
+
+            row.innerHTML = `
+                <td style="padding: 10px; border: 1px solid #ddd;">${item.id}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${item.score.toFixed(6)}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center; ${labelStyle}">${item.label}</td>
+            `;
+            resultTableBody.appendChild(row);
         });
     }
 });
