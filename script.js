@@ -1,11 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('predictorForm');
     const loading = document.getElementById('loadingStatus');
-    const loadingText = loading.querySelector('p'); // 抓取文字標籤來顯示進度
-    const resultContainer = document.getElementById('resultContainer');
-    const resultTableBody = document.getElementById('resultTableBody');
-    const baseUrl = 'https://gypsiferous-lavern-nonprobably.ngrok-free.dev';
-
+    
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -14,111 +10,61 @@ document.addEventListener('DOMContentLoaded', () => {
         const taskName = document.getElementById('jobTitle').value || "Untitled_Task";
         const email = document.getElementById('userEmail').value;
 
+        // 1. 基本檢查：是否有輸入
         if (!fastaInput && !fileInput) {
             alert("Please provide a FASTA sequence or upload a file.");
             return;
         }
 
+        // 2. 檔案大小檢查 (限制 5MB)
         const MAX_FILE_SIZE = 5 * 1024 * 1024; 
         if (fileInput && fileInput.size > MAX_FILE_SIZE) {
             alert("檔案太大了！請限制在 5MB 以內。");
             return;
         }
 
-        // 顯示 Loading 並初始化文字
         loading.classList.remove('hidden');
-        loadingText.innerText = "Submitting task to server...";
-        if (resultContainer) resultContainer.classList.add('hidden');
 
         try {
             let finalSequence = fastaInput;
+
+            // 3. 如果有上傳檔案，讀取檔案內容覆蓋 finalSequence
             if (fileInput) {
                 finalSequence = await readFileContent(fileInput);
             }
-
-            // 1. 發送請求開始預測任務
-            const response = await fetch(`${baseUrl}/predict`, {
+            // connect to local
+            // http://127.0.0.1:8000/predict
+            // 4. 發送請求到本地 API
+            const response = await fetch('https://gypsiferous-lavern-nonprobably.ngrok-free.dev/predict', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true' // 核心：跳過 ngrok 的中間警告頁
+                },
                 body: JSON.stringify({
                     task_name: taskName,
-                    email: email,
+                    email: email, // 記得傳送 email
                     sequence: finalSequence
                 })
             });
 
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            const startResult = await response.json();
-            const taskId = startResult.task_id; // 取得後端給的任務 ID
+            const result = await response.json();
 
-            // 2. 開始輪詢 (Polling)
-            const MAX_WAIT = 180 * 1000; // 3 分鐘 (180,000 毫秒)
-            const POLL_INTERVAL = 5000;  // 5 秒一次
-            let timeElapsed = 0;
-
-            const pollTimer = setInterval(async () => {
-                timeElapsed += POLL_INTERVAL;
-                loadingText.innerText = `Analyzing... ${timeElapsed / 1000}s / 180s`;
-
-                try {
-                    // 詢問後端算好了沒
-                    const statusRes = await fetch(`${baseUrl}/check_status/${taskId}`);
-                    const statusResult = await statusRes.json();
-
-                    if (statusResult.status === "completed") {
-                        clearInterval(pollTimer);
-                        loading.classList.add('hidden');
-                        
-                        // 渲染表格 (假設你的表格 HTML 已經準備好)
-                        renderResultTable(statusResult.data);
-                        resultContainer.classList.remove('hidden');
-                        resultContainer.scrollIntoView({ behavior: 'smooth' });
-                    } 
-                    else if (statusResult.status === "error") {
-                        clearInterval(pollTimer);
-                        loading.classList.add('hidden');
-                        alert("Prediction Error: " + statusResult.message);
-                    }
-                    // status 為 "processing" 則繼續等待...
-
-                } catch (pollError) {
-                    console.error("Polling error:", pollError);
-                    // 網路暫時不穩不中斷定時器，繼續嘗試
-                }
-
-                // 檢查是否逾時
-                if (timeElapsed >= MAX_WAIT) {
-                    clearInterval(pollTimer);
-                    loading.classList.add('hidden');
-                    alert("Timeout! The model is taking too long (over 3 mins). Please check the server or try a smaller batch.");
-                }
-
-            }, POLL_INTERVAL);
+            // 5. 成功處理
+            console.log("Prediction Result:", result);
+            alert(`Submission Successful!\nTask: ${result.task}\nResult: ${result.data.label} (Score: ${result.data.score})`);
 
         } catch (error) {
             console.error("Connection Error:", error);
+            alert("Failed to connect to the Local Prediction Server. Please ensure the Python API is running.");
+        } finally {
             loading.classList.add('hidden');
-            alert("Failed to connect to the server. Please ensure Python and ngrok are running.");
         }
     });
 
-    // 表格渲染副程式
-    function renderResultTable(dataList) {
-        if (!resultTableBody) return;
-        resultTableBody.innerHTML = ''; 
-        dataList.forEach(item => {
-            const row = document.createElement('tr');
-            const labelClass = item.label === 'neuropeptide' ? 'text-green' : 'text-red';
-            row.innerHTML = `
-                <td class="p-3 border">${item.id}</td>
-                <td class="p-3 border text-center">${item.score.toFixed(6)}</td>
-                <td class="p-3 border text-center ${labelClass}">${item.label}</td>
-            `;
-            resultTableBody.appendChild(row);
-        });
-    }
-
+    // 輔助函式：讀取本地檔案內容
     function readFileContent(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
