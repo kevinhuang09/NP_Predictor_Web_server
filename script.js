@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('predictorForm');
     const loading = document.getElementById('loadingStatus');
-
+    
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -10,9 +10,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const taskName = document.getElementById('jobTitle').value || "Untitled_Task";
         const email = document.getElementById('userEmail').value;
 
-        // 1. 基本檢查
+        // 1. 基本檢查：是否有輸入
         if (!fastaInput && !fileInput) {
             alert("Please provide a FASTA sequence or upload a file.");
+            return;
+        }
+
+        // 2. 檔案大小檢查 (限制 5MB)
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; 
+        if (fileInput && fileInput.size > MAX_FILE_SIZE) {
+            alert("檔案太大了！請限制在 5MB 以內。");
             return;
         }
 
@@ -21,12 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             let finalSequence = fastaInput;
 
-            // 2. 如果有上傳檔案，先讀取檔案內容
+            // 3. 如果有上傳檔案，讀取檔案內容覆蓋 finalSequence
             if (fileInput) {
                 finalSequence = await readFileContent(fileInput);
             }
 
-            // 3. 發送請求到本地 API (假設 API 運行在 8000 埠)
+            // 4. 發送請求到本地 API
             const response = await fetch('http://127.0.0.1:8000/predict', {
                 method: 'POST',
                 headers: {
@@ -34,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     task_name: taskName,
-                    email: email,
+                    email: email, // 記得傳送 email
                     sequence: finalSequence
                 })
             });
@@ -43,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const result = await response.json();
 
-            // 4. 成功處理
+            // 5. 成功處理
             console.log("Prediction Result:", result);
             alert(`Submission Successful!\nTask: ${result.task}\nResult: ${result.data.label} (Score: ${result.data.score})`);
 
