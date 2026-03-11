@@ -36,7 +36,20 @@
             <h2>NP Predictor <small>(Version 2.0)</small></h2>
             <p>請輸入蛋白質序列進行 Neuropeptide (NP) 活性預測。</p>
         </div>
-        
+        <div id="resultContainer" class="hidden" style="margin-top: 30px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <h2>Prediction Results</h2>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <thead>
+            <tr style="background-color: #f4f4f4;">
+                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Sequence ID</th>
+                <th style="padding: 10px; border: 1px solid #ddd; text-align: center;">Score</th>
+                <th style="padding: 10px; border: 1px solid #ddd; text-align: center;">Label</th>
+            </tr>
+        </thead>
+        <tbody id="resultTableBody">
+            </tbody>
+    </table>
+</div>
         <form id="predictorForm">
             <div class="form-row">
                 <div class="form-group">
